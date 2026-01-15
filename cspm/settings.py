@@ -149,7 +149,12 @@ SAML_CONFIG = {
         },
     },
     "metadata": {
-        "local": [os.path.join(BASE_DIR, "metadata.xml")]
+        "remote": [
+            {
+                "url": os.getenv('OKTA_METADATA'),
+                "cert": None,
+            }
+        ]
     },
     'key_file': None,
     'cert_file': None,
