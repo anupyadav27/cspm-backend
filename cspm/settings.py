@@ -15,12 +15,13 @@ REFRESH_TOKEN_LIFETIME_DAYS = int(os.getenv("REFRESH_TOKEN_LIFETIME_DAYS", 7))
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,*").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "django.contrib.postgres",  # For JSONField and ArrayField
     "corsheaders",
     "rest_framework",
     "user_auth",
@@ -30,7 +31,9 @@ INSTALLED_APPS = [
     "access_management",
     "audit_logs",
     "assets_management",
-    "threats_management"
+    "threats_management",
+    "onboarding_management",  # New app for onboarding tables
+    "scan_results_management",  # New app for scan results and findings
 ]
 
 REST_FRAMEWORK = {
@@ -56,13 +59,16 @@ MIDDLEWARE = [
 AUTH_USER_MODEL="user_auth.Users"
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for dev
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://ae2469ab99eff40b88109662102164e2-618626780.ap-south-1.elb.amazonaws.com",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://ae2469ab99eff40b88109662102164e2-618626780.ap-south-1.elb.amazonaws.com",
 ]
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -93,7 +99,8 @@ TEMPLATES = [
 MEDIA_ROOT = os.getenv("MEDIA_ROOT", os.path.join(BASE_DIR, "media"))
 MEDIA_URL = os.getenv("MEDIA_URL", "/media/")
 
-DB_SCHEMA = os.getenv("DB_SCHEMA")
+DB_SCHEMA = os.getenv("DB_SCHEMA", "public")
+DB_SSLMODE = os.getenv("DB_SSLMODE", "require")
 
 DATABASES = {
     "default": {
@@ -104,7 +111,8 @@ DATABASES = {
         "HOST": os.getenv("DB_HOST", "localhost"),
         "PORT": os.getenv("DB_PORT", "5432"),
         "OPTIONS": {
-            "options": f"-c search_path=public"
+            "options": f"-c search_path={DB_SCHEMA}",
+            "sslmode": DB_SSLMODE,
         },
     }
 }

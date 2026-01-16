@@ -1,13 +1,16 @@
 import uuid
 from django.db import models
 from tenant_management.models import Tenants
+from threats_management.models import Threat
 
 class Asset(models.Model):
     id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(
         Tenants,
         on_delete=models.CASCADE,
-        related_name="assets"
+        related_name="assets",
+        null=True,
+        blank=True
     )
     name = models.TextField()
     resource_id = models.TextField()
@@ -101,7 +104,14 @@ class AssetThreat(models.Model):
         on_delete=models.CASCADE,
         related_name="threat_links"
     )
-    threat_id = models.TextField()
+    threat = models.ForeignKey(
+        Threat,
+        on_delete=models.CASCADE,
+        related_name="asset_links",
+        db_column='threat_id',
+        null=True,
+        blank=True
+    )
     created_at = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(blank=True, null=True)
 
@@ -109,11 +119,11 @@ class AssetThreat(models.Model):
         db_table = 'asset_threats'
         indexes = [
             models.Index(fields=['asset']),
-            models.Index(fields=['threat_id']),
+            models.Index(fields=['threat']),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['asset', 'threat_id'],
+                fields=['asset', 'threat'],
                 name='unique_asset_threat'
             )
         ]
@@ -133,7 +143,9 @@ class Agent(models.Model):
     tenant = models.ForeignKey(
         Tenants,
         on_delete=models.CASCADE,
-        related_name="agents"
+        related_name="agents",
+        null=True,
+        blank=True
     )
     created_at = models.DateTimeField(blank=True, null=True)
     updated_at = models.DateTimeField(blank=True, null=True)
