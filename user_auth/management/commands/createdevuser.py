@@ -72,8 +72,8 @@ class Command(BaseCommand):
         # Create user
         user = Users(
             email=email,
-            name_first=first_name,
-            name_last=last_name,
+            first_name=first_name,
+            last_name=last_name,
             status=status,
             is_superuser=True,
         )

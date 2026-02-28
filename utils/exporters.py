@@ -1,9 +1,7 @@
 # your_app/utils/exporters.py
 import openpyxl
 from io import BytesIO
-from xhtml2pdf import pisa
 from django.template.loader import get_template
-from django.utils.text import slugify
 
 def generate_label(field):
     return field.replace("_", " ").title()
@@ -51,12 +49,4 @@ def export_to_pdf(data, labels=None):
         "rows": data,
         "fields": list(data[0].keys()) if data else [],
     }
-
-    template = get_template("export_tenants_pdf.html")
-    html = template.render(context)
-
-    result = BytesIO()
-    pdf = pisa.CreatePDF(BytesIO(html.encode("utf-8")), dest=result)
-    if not pdf.err:
-        return result.getvalue()
     return None

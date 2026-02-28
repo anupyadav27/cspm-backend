@@ -81,7 +81,7 @@ class LoginView(APIView):
         user.save(update_fields=['last_login'])
 
         # Prepare response
-        full_name = f"{user.name_first or ''} {user.name_last or ''}".strip()
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         response_data = {
             "message": "Login successful",
             "expiresIn": f"{getattr(settings, 'ACCESS_TOKEN_LIFETIME_MINUTES', 60)}m",
@@ -139,7 +139,7 @@ class RefreshTokenView(APIView):
             "user": {
                 "id": str(user.id),
                 "email": user.email,
-                "name": f"{user.name_first or ''} {user.name_last or ''}".strip(),
+                "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
                 "roles": [],
             },
         })
