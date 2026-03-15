@@ -10,6 +10,8 @@ from rest_framework.pagination import PageNumberPagination
 from .models import Tenants
 from .serializers import TenantSerializer
 from .filters import build_tenant_query
+from user_auth.authentication import CookieTokenAuthentication
+from user_auth.permissions import IsCSPMAuthenticated, require_operation
 
 
 class TenantsPagination(PageNumberPagination):
@@ -28,6 +30,20 @@ class TenantViewSet(
 ):
     serializer_class = TenantSerializer
     pagination_class = TenantsPagination
+    authentication_classes = [CookieTokenAuthentication]
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsCSPMAuthenticated(), require_operation('org:tenants:read')()]
+        elif self.action in ('create',):
+            return [IsCSPMAuthenticated(), require_operation('org:tenants:write')()]
+        elif self.action in ('update', 'partial_update'):
+            return [IsCSPMAuthenticated(), require_operation('org:tenants:write')()]
+        elif self.action in ('destroy',):
+            return [IsCSPMAuthenticated(), require_operation('org:tenants:write')()]
+        elif self.action == 'export':
+            return [IsCSPMAuthenticated(), require_operation('org:tenants:read')()]
+        return [IsCSPMAuthenticated()]
 
     def get_queryset(self):
         return build_tenant_query(self.request.query_params, user=self.request.user)
@@ -77,6 +93,46 @@ class TenantViewSet(
         response["Cache-Control"] = "private, max-age=300, stale-while-revalidate=120"
         response["Vary"] = "Cookie"
         return response
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Attach creating user
+        tenant = serializer.save(created_by=request.user)
+
+        return Response(
+            {
+                "success": True,
+                "message": "Tenant created successfully",
+                "data": TenantSerializer(tenant).data,
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        tenant = serializer.save()
+
+        return Response(
+            {
+                "success": True,
+                "message": "Tenant updated successfully",
+                "data": TenantSerializer(tenant).data,
+            }
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        tenant_name = instance.name
+        self.perform_destroy(instance)
+        return Response(
+            {"success": True, "message": f"Tenant '{tenant_name}' deleted successfully"},
+            status=status.HTTP_200_OK
+        )
 
     @action(detail=False, methods=["get"])
     def export(self, request):
