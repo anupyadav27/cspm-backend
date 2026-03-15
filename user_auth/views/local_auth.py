@@ -23,7 +23,6 @@ def csrf(request):
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class LoginView(APIView):
     def post(self, request):
-        # Parse JSON body
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -36,35 +35,28 @@ class LoginView(APIView):
         if not email or not password:
             return JsonResponse({"message": "Email and password are required."}, status=400)
 
-        # Fetch user
         try:
             user = Users.objects.get(email=email)
         except Users.DoesNotExist:
             return JsonResponse({"message": "Invalid email or password."}, status=404)
 
-        # Verify password
         if not user.password or not check_password(password, user.password):
             return JsonResponse({"message": "Invalid email or password."}, status=401)
 
-        # Revoke all existing sessions for this user
         UserSessions.objects.filter(user=user).delete()
 
-        # Generate raw tokens
         access_token = generate_token()
         refresh_token = generate_token() if remember_me else None
 
-        # Hash tokens for secure storage
         hashed_access = hash_token(access_token)
         hashed_refresh = hash_token(refresh_token) if refresh_token else None
 
-        # Calculate expiry
         expires_at = timezone.now() + (
             timedelta(days=getattr(settings, 'REFRESH_TOKEN_LIFETIME_DAYS', 1))
             if remember_me
             else timedelta(minutes=getattr(settings, 'ACCESS_TOKEN_LIFETIME_MINUTES', 60))
         )
 
-        # Save session with hashed tokens
         UserSessions.objects.create(
             id=uuid.uuid4(),
             user=user,
@@ -76,11 +68,9 @@ class LoginView(APIView):
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
         )
 
-        # Update last login
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
 
-        # Prepare response
         full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         response_data = {
             "message": "Login successful",
@@ -89,7 +79,7 @@ class LoginView(APIView):
                 "id": str(user.id),
                 "email": user.email,
                 "name": full_name,
-                "roles": [],  # extend when role model exists
+                "roles": [],
             },
         }
 
@@ -107,7 +97,6 @@ class RefreshTokenView(APIView):
             clear_auth_cookies(response)
             return response
 
-        # Find session by hashed refresh token
         sessions = UserSessions.objects.filter(refresh_token__isnull=False)
         valid_session = None
         user = None
@@ -115,7 +104,7 @@ class RefreshTokenView(APIView):
         for session in sessions:
             if verify_token(refresh_token, session.refresh_token):
                 if session.expires_at < timezone.now():
-                    session.delete()  # auto-cleanup expired
+                    session.delete()
                     continue
                 valid_session = session
                 user = session.user
@@ -126,7 +115,6 @@ class RefreshTokenView(APIView):
             clear_auth_cookies(response)
             return response
 
-        # Issue new access token
         new_access_token = generate_token()
         hashed_new_access = hash_token(new_access_token)
 
@@ -143,7 +131,7 @@ class RefreshTokenView(APIView):
                 "roles": [],
             },
         })
-        set_auth_cookies(response, new_access_token)  # do NOT reissue refresh token
+        set_auth_cookies(response, new_access_token)
         return response
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -156,7 +144,6 @@ class LogoutView(APIView):
         login_method = "local"
         deleted = False
 
-        # Try to find session by access token
         if access_token:
             sessions = UserSessions.objects.filter(token__isnull=False)
             for session in sessions:
@@ -167,7 +154,6 @@ class LogoutView(APIView):
                     deleted = True
                     break
 
-        # If not found, try refresh token
         if not deleted and refresh_token:
             sessions = UserSessions.objects.filter(refresh_token__isnull=False)
             for session in sessions:
@@ -177,8 +163,6 @@ class LogoutView(APIView):
                     session.delete()
                     deleted = True
                     break
-
-        # TODO: Later, handle SAML SLO if login_method == "saml"
 
         response = JsonResponse({
             "message": "Logout successful",

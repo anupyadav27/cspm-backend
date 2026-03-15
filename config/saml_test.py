@@ -6,11 +6,6 @@ from urllib.parse import parse_qs
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import webbrowser
 
-# ==========================================
-# 1. SETUP DJANGO ENVIRONMENT
-
-# ==========================================
-# Replace 'config.settings' with your actual settings module path if different
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 try:
@@ -27,21 +22,16 @@ from djangosaml2.conf import get_config
 from saml2.client import Saml2Client
 import saml2
 
-# Set up logging to see exactly what pysaml2 is doing internally
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
 logger = logging.getLogger('saml2')
 logger.setLevel(logging.DEBUG)
 
-# Shared state to capture the SAML POST from Okta
 captured_data = {}
 
 
-# ==========================================
-# 2. TEMPORARY HTTP SERVER TO CATCH ACS POST
-# ==========================================
 class ACSCaptureHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass  # Suppress default HTTP server logs to keep terminal clean
+        pass
 
     def do_POST(self):
         if self.path == '/api/auth/saml/acs/':
@@ -56,7 +46,6 @@ class ACSCaptureHandler(BaseHTTPRequestHandler):
             else:
                 print("[ERROR] No SAMLResponse found in the POST payload!")
 
-            # Send a response to the browser
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
@@ -76,12 +65,9 @@ def run_temp_server():
     server_address = ('', 8000)
     httpd = HTTPServer(server_address, ACSCaptureHandler)
     print("\n[STEP 3] Listening on http://localhost:8000/api/auth/saml/acs/ for Okta's callback...")
-    httpd.handle_request()  # Handles exactly ONE request and then shuts down
+    httpd.handle_request()
 
 
-# ==========================================
-# 3. MAIN DEBUG WORKFLOW
-# ==========================================
 def main():
     print("\n" + "=" * 50)
     print(" SAML AUTHENTICATION DEBUGGER ".center(50))
@@ -89,7 +75,6 @@ def main():
 
     input("\nPress ENTER to load SAML Configuration and connect to Okta metadata...")
 
-    # Load configuration
     try:
         conf = get_config()
         client = Saml2Client(conf)
@@ -100,7 +85,6 @@ def main():
 
     input("\nPress ENTER to generate the AuthNRequest (Login Request)...")
 
-    # Generate the login request
     try:
         reqid, info = client.prepare_for_authenticate()
         redirect_url = None
@@ -127,11 +111,9 @@ def main():
     print("=" * 50)
     input("\nPress ENTER to open browser and start listening...")
 
-    # Open browser and start listening
     webbrowser.open(redirect_url)
     run_temp_server()
 
-    # Process the captured response
     if 'SAMLResponse' not in captured_data:
         print("\n[ERROR] Did not capture a SAMLResponse. Exiting.")
         return
@@ -141,10 +123,8 @@ def main():
     input("\nPress ENTER to decode and validate the SAML Response...")
 
     try:
-        # Outstanding requests dictionary to validate InResponseTo
         outstanding = {reqid: '/api/auth/saml/acs/'}
 
-        # Parse and validate the response against your sp_key/sp_cert and Okta's metadata
         authn_response = client.parse_authn_request_response(
             saml_response_raw,
             saml2.entity.BINDING_HTTP_POST,
@@ -159,7 +139,6 @@ def main():
         print("[SUCCESS] SAML ASSERTION VALIDATED SUCCESSFULLY!")
         print("=" * 50)
 
-        # Extract user information
         session_info = authn_response.session_info()
         print("\n--- USER IDENTITY ---")
         print(f"NameID (Subject): {session_info.get('name_id').text}")
@@ -182,11 +161,9 @@ def main():
         from django.contrib.auth import authenticate
         from django.http import HttpRequest
 
-        # Create a mock request
         request = HttpRequest()
         request.session = {}
 
-        # Attempt to authenticate/create user using djangosaml2 backend
         user = authenticate(request=request, session_info=session_info)
 
         if user:
