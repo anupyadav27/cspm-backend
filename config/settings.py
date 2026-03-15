@@ -1,11 +1,9 @@
 import os
 from pathlib import Path
 
-import os
 import saml2
 import django.contrib.sessions.serializers
 from dotenv import load_dotenv
-
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -15,12 +13,12 @@ load_dotenv(CONF_DIR / ".env")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
-ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv("ACCESS_TOKEN_LIFETIME_MINUTES", 15))
+ACCESS_TOKEN_LIFETIME_MINUTES = int(os.getenv("ACCESS_TOKEN_LIFETIME_MINUTES", 60))
 REFRESH_TOKEN_LIFETIME_DAYS = int(os.getenv("REFRESH_TOKEN_LIFETIME_DAYS", 7))
-FRONTEND_URL = os.getenv("FRONTEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,*").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -34,8 +32,10 @@ INSTALLED_APPS = [
     "tenant_management",
     "audit_logs",
     "onboarding_management",
+    "engines",
 ]
 
+# Engine base URL — used by all proxy views
 ENGINE_BASE_URL = os.getenv(
     "ENGINE_BASE_URL",
     "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com"
@@ -46,7 +46,10 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ),
     "UNAUTHENTICATED_USER": None,
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "user_auth.authentication.CookieTokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [],
 }
 
 MIDDLEWARE = [
@@ -59,19 +62,23 @@ MIDDLEWARE = [
     'djangosaml2.middleware.SessionMiddleware',
     'djangosaml2.middleware.SamlSessionMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Audit logging — must come after AuthenticationMiddleware
+    'audit_logs.middleware.AuditLogMiddleware',
 ]
 
-AUTH_USER_MODEL="user_auth.Users"
+AUTH_USER_MODEL = "user_auth.Users"
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
+CORS_ALLOWED_ORIGINS = os.getenv(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    "CSRF_TRUSTED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
+
 CORS_ALLOW_HEADERS = [
     "accept",
     "authorization",
@@ -82,6 +89,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 ROOT_URLCONF = 'config.urls'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -112,8 +120,9 @@ DATABASES = {
         "HOST": os.getenv("DB_HOST", "localhost"),
         "PORT": os.getenv("DB_PORT", "5432"),
         "OPTIONS": {
-            "options": f"-c search_path=public"
+            "options": "-c search_path=public"
         },
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", 60)),
     }
 }
 
@@ -124,11 +133,14 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'djangosaml2.backends.Saml2Backend',
 )
+
+# ── SAML ──────────────────────────────────────────────────────────────────────
+LOGIN_REDIRECT_URL = os.getenv("LOGIN_REDIRECT_URL", "/api/auth/saml/success/")
+LOGOUT_REDIRECT_URL = os.getenv("LOGOUT_REDIRECT_URL", FRONTEND_URL)
 
 SAML_DJANGO_USER_MAIN_ATTRIBUTE = 'email'
 SAML_USE_NAME_ID_AS_USERNAME = True
@@ -138,28 +150,27 @@ SAML_ATTRIBUTE_MAPPING = {
     'firstName': ('first_name',),
     'lastName': ('last_name',),
 }
-XMLSEC_BINARY=BASE_DIR/os.getenv("XMLSEC_BINARY")
+
+XMLSEC_BINARY = BASE_DIR / os.getenv("XMLSEC_BINARY", "xmlsec1")
 
 SAML_CONFIG = {
     'debug': DEBUG,
     'xmlsec_binary': str(XMLSEC_BINARY),
     'entityid': os.getenv('SAML_AUDIENCE'),
     'allow_unknown_attributes': True,
-
     'key_file': os.path.join(CONF_DIR, 'sp_key.pem'),
     'cert_file': os.path.join(CONF_DIR, 'sp_cert.pem'),
-
     'service': {
         'sp': {
             'name': 'CSPM SP',
             'name_id_format': saml2.NAMEID_FORMAT_EMAILADDRESS,
             'endpoints': {
                 'assertion_consumer_service': [
-                    (os.getenv('SAML_CALLBACK_URL'), saml2.BINDING_HTTP_POST),
+                    (os.getenv('SAML_CALLBACK_URL', 'http://localhost:8000/api/auth/saml/acs/'), saml2.BINDING_HTTP_POST),
                 ],
                 'single_logout_service': [
-                    (os.getenv('SAML_LOGOUT_CALLBACK_URL'), saml2.BINDING_HTTP_POST),
-                    (os.getenv('SAML_LOGOUT_CALLBACK_URL'), saml2.BINDING_HTTP_REDIRECT),
+                    (os.getenv('SAML_LOGOUT_CALLBACK_URL', 'http://localhost:8000/api/auth/saml/acs/logout/'), saml2.BINDING_HTTP_POST),
+                    (os.getenv('SAML_LOGOUT_CALLBACK_URL', 'http://localhost:8000/api/auth/saml/acs/logout/'), saml2.BINDING_HTTP_REDIRECT),
                 ],
             },
             'allow_unsolicited': True,
@@ -167,15 +178,48 @@ SAML_CONFIG = {
             'logout_requests_signed': True,
             'want_assertions_signed': False,
             'want_response_signed': False,
-
         },
     },
     'metadata': {
-        'remote': [{'url': os.getenv('OKTA_METADATA')}],
+        'remote': [{'url': os.getenv('OKTA_METADATA', '')}],
     },
 }
 
-SAML_CONFIG['service']['sp']['relay_state'] = 'http://localhost:8000/api/auth/saml/success/'
+SAML_CONFIG['service']['sp']['relay_state'] = os.getenv(
+    'SAML_RELAY_STATE',
+    'http://localhost:8000/api/auth/saml/success/'
+)
 SAML_CSP_HANDLER = ''
 SESSION_SERIALIZER = 'django.contrib.sessions.serializers.JSONSerializer'
 
+# ── Logging ───────────────────────────────────────────────────────────────────
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.getenv('LOG_LEVEL', 'INFO'),
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'user_auth': {'handlers': ['console'], 'level': 'DEBUG'},
+        'engines': {'handlers': ['console'], 'level': 'DEBUG'},
+        'audit_logs': {'handlers': ['console'], 'level': 'INFO'},
+    },
+}
