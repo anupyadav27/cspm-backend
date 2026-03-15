@@ -231,11 +231,17 @@ class LogoutView(APIView):
                     deleted = True
                     break
 
-        response = JsonResponse({
+        is_sso = login_method == "saml"
+        response_data = {
             "success": True,
             "message": "Logout successful",
-            "sso": login_method == "saml"
-        })
+            "sso": is_sso
+        }
+
+        if is_sso:
+            response_data["redirectUrl"] = "/api/auth/saml/logout/"
+
+        response = JsonResponse(response_data)
 
         clear_auth_cookies(response)
         return response

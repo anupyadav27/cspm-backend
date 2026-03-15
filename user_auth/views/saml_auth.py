@@ -3,12 +3,15 @@ from django.conf import settings
 from django.utils import timezone
 from django.http import HttpResponseRedirect
 from rest_framework.views import APIView
+from rest_framework.authentication import SessionAuthentication
 from user_auth.models import UserSessions
 from user_auth.utils.auth_utils import generate_token, hash_token
 from user_auth.utils.cookie_utils import set_auth_cookies
 
 
 class SamlSuccessBridgeView(APIView):
+    authentication_classes = [SessionAuthentication]
+
     def get(self, request):
         if not request.user.is_authenticated:
             frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
@@ -45,7 +48,6 @@ class SamlSuccessBridgeView(APIView):
             user_agent=request.META.get('HTTP_USER_AGENT', ''),
         )
 
-        request.session.flush()
 
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
         response = HttpResponseRedirect(f"{frontend_url}/dashboard")

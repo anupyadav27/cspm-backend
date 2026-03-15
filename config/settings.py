@@ -139,6 +139,9 @@ AUTHENTICATION_BACKENDS = (
 )
 
 # ── SAML ──────────────────────────────────────────────────────────────────────
+LOGIN_REDIRECT_URL = os.getenv("LOGIN_REDIRECT_URL", "/api/auth/saml/success/")
+LOGOUT_REDIRECT_URL = os.getenv("LOGOUT_REDIRECT_URL", FRONTEND_URL)
+
 SAML_DJANGO_USER_MAIN_ATTRIBUTE = 'email'
 SAML_USE_NAME_ID_AS_USERNAME = True
 SAML_CREATE_UNKNOWN_USER = True

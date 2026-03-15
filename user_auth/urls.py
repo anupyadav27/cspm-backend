@@ -29,6 +29,7 @@ urlpatterns = [
 
     # ── SAML AUTH ─────────────────────────────────────────────────────────────
     path('saml/login/', saml2_views.LoginView.as_view(), name='saml_login'),
+    path('saml/logout/', saml2_views.LogoutInitView.as_view(), name='saml_logout_init'),
     path('saml/acs/', saml2_views.AssertionConsumerServiceView.as_view(), name='saml_acs'),
     path('saml/acs/logout/', saml2_views.LogoutView.as_view(), name='saml_logout'),
     path('saml/metadata/', saml2_views.MetadataView.as_view(), name='saml_metadata'),

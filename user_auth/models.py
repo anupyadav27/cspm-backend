@@ -66,6 +66,24 @@ class Users(AbstractBaseUser, PermissionsMixin):
         db_table = 'users'
         indexes = [models.Index(fields=['email'])]
 
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Users)
+def assign_default_role(sender, instance, created, **kwargs):
+    if created:
+        role, _ = Roles.objects.get_or_create(
+            name='user',
+            defaults={
+                'description': 'Default system user role',
+                'level': 5,
+                'scope_level': 'system',
+                'tenant_scoped': False,
+                'is_system': True
+            }
+        )
+        UserRoles.objects.get_or_create(user=instance, role=role, tenant_id=None)
+
 
 class UserSessions(models.Model):
     """
