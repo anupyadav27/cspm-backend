@@ -33,7 +33,13 @@ INSTALLED_APPS = [
     "django_extensions",
     "tenant_management",
     "audit_logs",
+    "onboarding_management",
 ]
+
+ENGINE_BASE_URL = os.getenv(
+    "ENGINE_BASE_URL",
+    "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com"
+)
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": (

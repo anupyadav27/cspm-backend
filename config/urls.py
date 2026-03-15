@@ -5,5 +5,6 @@ urlpatterns = [
     path('health', health_check, name='health'),
     path('api/auth/', include("user_auth.urls")),
     path('api/', include("tenant_management.urls")),
+    path('api/onboarding/', include("onboarding_management.urls")),
 
 ]

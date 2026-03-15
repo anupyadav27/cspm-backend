@@ -11,10 +11,7 @@ REFRESH_TOKEN_LIFETIME = timedelta(
 
 
 def set_auth_cookies(response, access_token=None, refresh_token=None):
-    """
-    Set HTTP-only, secure cookies for tokens.
-    Only sets cookies if tokens are provided.
-    """
+
     now = timezone.now()
     secure = not settings.DEBUG
 
@@ -42,8 +39,6 @@ def set_auth_cookies(response, access_token=None, refresh_token=None):
 
 
 def clear_auth_cookies(response):
-    """
-    Clear authentication cookies.
-    """
+
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
